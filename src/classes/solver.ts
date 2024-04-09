@@ -1,23 +1,6 @@
 import Board from "./board";
-import MinHeap from "min-heap-typed";
-
-type Comparator<T> = (a: T, b: T) => number;
-
-class SearchNode {
-  board: Board;
-  moves: number;
-  prevNode: SearchNode | null;
-
-  constructor(board: Board, moves: number, prevNode: SearchNode | null) {
-    this.board = board;
-    this.moves = moves;
-    this.prevNode = prevNode;
-  }
-
-  priority(): number {
-    return this.moves + this.board.manhattan();
-  }
-}
+import SearchNode from "./searchnode";
+import { MinHeap } from "min-heap-typed";
 
 class Solver {
   private readonly initialBoard: Board;
@@ -32,8 +15,8 @@ class Solver {
     this.initialBoard = initial;
     this.isSolvableFlag = this.solvePuzzle();
     if (this.isSolvableFlag) {
-      this.minMoves = this.calculateMinMoves();
       this.solutionSequence = this.calculateSolutionSequence();
+      this.minMoves = this.solutionSequence.length - 1;
     } else {
       this.minMoves = -1;
       this.solutionSequence = [];
@@ -41,24 +24,17 @@ class Solver {
   }
 
   private solvePuzzle(): boolean {
-    const initialNode = new SearchNode(this.initialBoard, 0, null);
+    const initialNode = new SearchNode(this.initialBoard);
     const minHeap = new MinHeap<SearchNode>();
-    minHeap.insert(
-      initialNode,
-      (a: SearchNode, b: SearchNode) => a.priority() - b.priority()
-    );
+    minHeap.add(initialNode);
 
-    const twinInitialNode = new SearchNode(this.initialBoard.twin(), 0, null);
+    const twinInitialNode = new SearchNode(this.initialBoard.twin());
     const twinMinHeap = new MinHeap<SearchNode>();
-    twinMinHeap.insert(
-      twinInitialNode,
-      (a: SearchNode, b: SearchNode) => a.priority() - b.priority()
-    );
+    twinMinHeap.add(twinInitialNode);
 
     while (!minHeap.isEmpty() && !twinMinHeap.isEmpty()) {
-      const minNode = minHeap.delete();
-      const twinMinNode = twinMinHeap.delete();
-
+      const minNode: any | null = minHeap.poll();
+      const twinMinNode: any | null = twinMinHeap.poll();
       if (minNode.board.isGoal()) {
         return true;
       } else if (twinMinNode.board.isGoal()) {
@@ -70,10 +46,7 @@ class Solver {
           minNode.prevNode === null ||
           !neighbor.equals(minNode.prevNode.board)
         ) {
-          minHeap.insert(
-            new SearchNode(neighbor, minNode.moves + 1, minNode),
-            (a: SearchNode, b: SearchNode) => a.priority() - b.priority()
-          );
+          minHeap.add(new SearchNode(neighbor, minNode));
         }
       }
 
@@ -82,10 +55,7 @@ class Solver {
           twinMinNode.prevNode === null ||
           !neighbor.equals(twinMinNode.prevNode.board)
         ) {
-          twinMinHeap.insert(
-            new SearchNode(neighbor, twinMinNode.moves + 1, twinMinNode),
-            (a: SearchNode, b: SearchNode) => a.priority() - b.priority()
-          );
+          twinMinHeap.add(new SearchNode(neighbor, twinMinNode));
         }
       }
     }
@@ -93,22 +63,37 @@ class Solver {
     return false;
   }
 
-  private calculateMinMoves(): number {
-    return this.isSolvableFlag ? this.solutionSequence.length - 1 : -1;
-  }
-
   private calculateSolutionSequence(): Board[] {
     if (!this.isSolvableFlag) return [];
     const sequence: Board[] = [];
-    let currentNode: SearchNode | null = null;
-    for (
-      currentNode = this.solutionSequence[this.solutionSequence.length - 1];
-      currentNode !== null;
-      currentNode = currentNode.prevNode
-    ) {
+    let currentNode: SearchNode | null = this.solutionNode();
+    while (currentNode !== null) {
       sequence.unshift(currentNode.board);
+      currentNode = currentNode.prevNode;
     }
     return sequence;
+  }
+
+  private solutionNode(): SearchNode | null {
+    const initialNode = new SearchNode(this.initialBoard);
+    const minHeap = new MinHeap<SearchNode>();
+    minHeap.add(initialNode);
+
+    while (!minHeap.isEmpty()) {
+      const minNode: any | null = minHeap.poll();
+      if (minNode.board.isGoal()) {
+        return minNode;
+      }
+      for (const neighbor of minNode.board.neighbors()) {
+        if (
+          minNode.prevNode === null ||
+          !neighbor.equals(minNode.prevNode.board)
+        ) {
+          minHeap.add(new SearchNode(neighbor, minNode));
+        }
+      }
+    }
+    return null;
   }
 
   isSolvable(): boolean {
